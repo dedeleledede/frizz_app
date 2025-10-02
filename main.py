@@ -1,6 +1,7 @@
 import os, sys, discord
 from discord.ext import commands
 
+cogs_path = os.path.join(os.path.dirname(__file__), 'cogs')
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))     
 PARENT_DIR = os.path.dirname(BASE_DIR)                    
 if PARENT_DIR not in sys.path:
@@ -16,7 +17,7 @@ class MyBot(commands.Bot):
 
     async def setup_hook(self):
         # load cogs
-        for filename in os.listdir('./cogs'):
+        for filename in os.listdir(cogs_path):
             if filename.endswith('.py') and not filename.startswith('_'):
                 await self.load_extension(f'cogs.{filename[:-3]}')  # remove .py
 
