@@ -1,13 +1,20 @@
 import os, sys, discord
 from discord.ext import commands
+from dotenv import load_dotenv
 
 cogs_path = os.path.join(os.path.dirname(__file__), 'cogs')
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))     
-PARENT_DIR = os.path.dirname(BASE_DIR)                    
+PARENT_DIR = os.path.dirname(BASE_DIR)                  
+load_dotenv(os.path.join(BASE_DIR, '.env'))  
 if PARENT_DIR not in sys.path:
     sys.path.insert(0, PARENT_DIR)
 
 import config
+
+token = config.DEBUG_TOKEN
+
+if not token:
+    raise RuntimeError("Token ausente. Verifique o .env e o carregamento com load_dotenv().")
 
 class MyBot(commands.Bot):
     def __init__(self):
@@ -33,4 +40,4 @@ async def on_ready():
     print(f'logado como {bot.user} (ID: {bot.user.id})\n')
 
 # run the bot
-bot.run(config.TOKEN)
+bot.run(token)
