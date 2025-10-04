@@ -39,6 +39,5 @@ bot = MyBot()
 async def on_ready():
     print(f'logado como {bot.user} (ID: {bot.user.id})\n')
 
-
 # run the bot
 bot.run(token)
