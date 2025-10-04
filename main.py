@@ -11,6 +11,8 @@ if PARENT_DIR not in sys.path:
 
 import config
 
+token = config.TOKEN
+
 # --- SELF UPDATE (Orihost sem console/sem startup editável) ---
 def self_update():
     import os, subprocess, io, zipfile, urllib.request, shutil, tempfile, glob
@@ -102,8 +104,6 @@ def self_update():
 # Chame isso logo no início do programa:
 self_update()
 # --- FIM SELF UPDATE ---
-
-token = config.DEBUG_TOKEN
 
 if not token:
     raise RuntimeError("Token ausente. Verifique o .env e o carregamento com load_dotenv().")
