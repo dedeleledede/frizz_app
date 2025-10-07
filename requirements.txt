@@ -1,1 +1,1 @@
-discord.py>=2.3.2
+discord.py>=2.3.2\npy-discord-html-transcripts>=2.4.0\npython-dotenv>=1.0.0
