@@ -13,7 +13,7 @@ import config
 
 token = config.TOKEN
 
-# --- SELF UPDATE (Orihost sem console/sem startup editável) ---
+# --- SELF UPDATE ---
 def self_update():
     import os, subprocess, io, zipfile, urllib.request, shutil, tempfile, glob, time
 
@@ -24,7 +24,7 @@ def self_update():
     token = os.getenv('ACCESS_TOKEN')
 
     # >>> arquivos/pastas que NÃO devem ser apagados por update
-    PRESERVE = ['.env']  # adicione outros se precisar, ex: 'data', 'config.local.json'
+    PRESERVE = ['.env', 'ticket_config.json']  # adicione outros se precisar, ex: 'data', 'config.local.json'
 
     if os.getenv('DISABLE_SELF_UPDATE') == '1':
         print('[updater] desativado por DISABLE_SELF_UPDATE=1')
@@ -156,7 +156,7 @@ def self_update():
     except Exception as e_zip:
         print(f'[updater] fallback ZIP também falhou: {e_zip}')
 
-# Chame isso logo no início do programa:
+# Chama isso logo no inicio do programa
 self_update()
 # --- FIM SELF UPDATE ---
 
@@ -167,7 +167,7 @@ class MyBot(commands.Bot):
     def __init__(self):
         intents = discord.Intents.default()
         intents.message_content = True
-        super().__init__(command_prefix=commands.when_mentioned_or('-', config.PREFIX), intents=intents)
+        super().__init__(command_prefix=commands.when_mentioned_or(config.PREFIX), intents=intents)
 
     async def setup_hook(self):
         # load cogs
