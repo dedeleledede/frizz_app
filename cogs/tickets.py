@@ -6,36 +6,44 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 
+# ========= Helpers =========
+
 # guardar em um txt externo com o config para nao perder ao reiniciar bot
 CONFIG_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'configs', 'ticket_config.json')
+
+CONFIG_KEY = "CONFIG"
+
+def save_config(config: dict):
+    with open(CONFIG_FILE, 'w') as f:
+        json.dump({CONFIG_KEY: config}, f, indent=4)
+
+def load_config() -> dict:
+    if not os.path.isfile(CONFIG_FILE):
+        print("Creating default config file...")
+        default_config = {
+            "last_ticket_message_id": 0,
+            "ticket_category_id": 0,
+            "panel_channel_id": 0,
+            "staff_role_id": 0,
+            "admin_role_id": 0,
+            "logs_channel_id": 0,
+            "one_ticket_per_user": True,
+            "enable_anonymous_reports": True,
+            "rating_timeout_sec": 20,
+            "sla_warn_hours": 24,
+            "sla_autoclose_hours": 48
+        }
+        save_config(default_config)
+    with open(CONFIG_FILE, 'r') as f:
+        return json.load(f).get(CONFIG_KEY, {})
 
 config_dir = os.path.dirname(CONFIG_FILE)
 if not os.path.exists(config_dir):
     os.makedirs(config_dir)
 
-if not CONFIG_FILE or not os.path.isfile(CONFIG_FILE):
-    with open(CONFIG_FILE, 'w') as f:
-        print("Creating default config file...")
-        json.dump({
-            "CONFIG": {
-                "last_ticket_message_id": 0,
-                "ticket_category_id": 0,
-                "panel_channel_id": 0,
-                "staff_role_id": 0,
-                "admin_role_id": 0,
-                "logs_channel_id": 0,
-                "one_ticket_per_user": True,
-                "enable_anonymous_reports": True,
-                "rating_timeout_sec": 20,
-                "sla_warn_hours": 24,
-                "sla_autoclose_hours": 48
-            }
-        }, f, indent=4)
-# load config e pegar dps com CONFIG.get("key")
-with open(CONFIG_FILE, 'r') as f:
-    CONFIG = json.load(f).get("CONFIG", {})
+CONFIG = load_config()
 
-# ========= Helpers =========
+# construir nome do canal
 def build_channel_name(category: str, author: discord.Member) -> str:
     short = author.display_name.lower().replace(' ', '-')[:16]
     emoji = {"teste":"🤡"}.get(category, "🤡")
@@ -55,8 +63,10 @@ def check_configs():
         if CONFIG.get(key, 0) == 0:
             missing.append(key)
     if missing:
-        return True, f"Configuração ausente ou inválida: {', '.join(missing)}\nUtilize /configure para configurar o bot."
+        return True, f"Configuração ausente ou inválida: {', '.join(missing)}\nUtilize /ticket config para configurar o bot."
     return False, None
+
+# fazer check com last_ticket_message_id para verificar se o painel ja foi postado, se sim, continuar usando o mesmo (atualmente ele para de funcionar), deveria ser uma classe ou funcao?
 
 class TicketModal(discord.ui.Modal):
     def __init__(self, category: str, *, anonymous: bool = False):
@@ -86,7 +96,6 @@ class TicketModal(discord.ui.Modal):
                     return await interaction.followup.send(content=f"Você já possui um ticket aberto: {ch.mention}", ephemeral=True)
 
         ticket_category_id = CONFIG.get("ticket_category_id")
-        print("ticket_category_id:", ticket_category_id)
         parent = guild.get_channel(ticket_category_id) if ticket_category_id and ticket_category_id != 0 else None
 
         channel = await guild.create_text_channel(
@@ -201,7 +210,6 @@ async def do_close(interaction: discord.Interaction, reason: str):
     # remover permissao de escrita para todos (exceto staff)
     overwrites = channel.overwrites
     author_id = extract_author_id(channel.topic)
-    print(f"author_id extraido: {author_id}")
     if author_id:
         member = guild.get_member(int(author_id))
         if member and member in overwrites:
@@ -210,13 +218,10 @@ async def do_close(interaction: discord.Interaction, reason: str):
         await channel.edit(overwrites=overwrites, reason="Ticket encerrado")
 
         await channel.send("encerrado")
-
-        print(2)
+        # enviar log para canal de logs
         # delete provisorio
         wait_time = 5  # segundos
         await channel.send(f"Este canal será excluído em {wait_time} segundos.")
-
-        print(3)
 
         await asyncio.sleep(wait_time)
         await channel.delete(reason="Ticket encerrado")
@@ -224,35 +229,114 @@ async def do_close(interaction: discord.Interaction, reason: str):
 def extract_author_id(topic: Optional[str]) -> Optional[int]:
     try:
         if not topic:
-            print("NO TOPIC")
             return None
         for part in topic.split(";"):
-            print("YES TOPIC")
             if 'ticket_author_id=' in part:
-                print("FOUND ID")
                 return int(part.split('=')[1].strip())
     except Exception as e:
         print(f"ERROR EXTRACTING ID: {e}")
         return None
-
+ 
 class Tickets(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
 
+    # grupo de comandos /ticket
+    group = app_commands.Group(name="ticket", description="Utilidades e configuracoes de tickets.")
+
     #publicar painel
-    @app_commands.command(name="ticket_panel", description="Publica o painel de abertura de tickets no canal atual.")
+    @group.command(name="panel", description="Publica o painel de abertura de tickets no canal atual.")
     @app_commands.checks.has_permissions(manage_guild=True)
-    async def ticket_panel(self, interaction: discord.Interaction):
+    async def panel(self, interaction: discord.Interaction):
         # checagem de configs
-        #missing, message = check_configs()
-        #if missing:
-        #    await interaction.response.send_message(message, ephemeral=True)
-        #    return False
+        missing, message = check_configs()
+        if missing:
+            await interaction.response.send_message(message, ephemeral=True)
+            return False
 
         await interaction.response.send_message("Painel publicado.", ephemeral=True)
         embed = discord.Embed(title="Abertura de Tickets", description="Escolha uma das categorias abaixo para abrir seu ticket.", colour=discord.Colour.green())
         view = PanelView()
         await interaction.channel.send(embed=embed, view=view)
+
+    #debug 
+    @group.command(name="debug", description="Comando de debug (apenas admins).")
+    @app_commands.checks.has_permissions(administrator=True)
+    async def debug(self, interaction: discord.Interaction):
+        await interaction.response.send_message(f"Current CONFIG: {CONFIG}", ephemeral=True)
+
+    # configurar tickets
+    @group.command(name="config", description="Configura IDs de canais e cargos")
+    @app_commands.describe(panel_channel_id="Canal onde o painel de tickets sera postado", logs_channel_id="Canal onde os logs de tickets serao enviados", ticket_category_id="Categoria onde os tickets serao criados", staff_role_id="Cargo que tera acesso aos tickets", admin_role_id="Cargo com permissoes administrativas no bot", one_ticket_per_user="Permitir apenas um ticket por usuario", enable_anonymous_reports="Permitir tickets anonimos", rating_timeout_sec="Tempo (em segundos) para aguardar avaliacao apos fechamento do ticket (default 20s)", sla_warn_hours="Horas para avisar sobre SLA (0 para desativar, default 24h)", sla_autoclose_hours="Horas para fechar automaticamente o ticket (0 para desativar, default 48h)")
+    @app_commands.checks.has_permissions(administrator=True)
+    async def config_cmd(self, interaction: discord.Interaction,
+        panel_channel_id: Optional[discord.TextChannel] = None,
+        logs_channel_id: Optional[discord.TextChannel] = None,
+        ticket_category_id: Optional[discord.CategoryChannel] = None,
+        staff_role_id: Optional[discord.Role] = None,
+        admin_role_id: Optional[discord.Role] = None,
+        one_ticket_per_user: Optional[bool] = None,
+        enable_anonymous_reports: Optional[bool] = None,
+        rating_timeout_sec: Optional[int] = None,
+        sla_warn_hours: Optional[int] = None,
+        sla_autoclose_hours: Optional[int] = None
+    ):
+        changes = []
+        if panel_channel_id is not None:
+            CONFIG["panel_channel_id"] = panel_channel_id.id if hasattr(panel_channel_id, "id") else panel_channel_id
+            changes.append(f"panel_channel_id definido para <#{CONFIG['panel_channel_id']}>")
+        if logs_channel_id is not None:
+            CONFIG["logs_channel_id"] = logs_channel_id.id if hasattr(logs_channel_id, "id") else logs_channel_id
+            changes.append(f"logs_channel_id definido para <#{CONFIG['logs_channel_id']}>")
+        if ticket_category_id is not None:
+            CONFIG["ticket_category_id"] = ticket_category_id.id if hasattr(ticket_category_id, "id") else ticket_category_id
+            changes.append(f"ticket_category_id definido para <#{CONFIG['ticket_category_id']}>")
+        if staff_role_id is not None:
+            CONFIG["staff_role_id"] = staff_role_id.id if hasattr(staff_role_id, "id") else staff_role_id
+            changes.append(f"staff_role_id definido para <@&{CONFIG['staff_role_id']}>")
+        if admin_role_id is not None:
+            CONFIG["admin_role_id"] = admin_role_id.id if hasattr(admin_role_id, "id") else admin_role_id
+            changes.append(f"admin_role_id definido para <@&{CONFIG['admin_role_id']}>")
+        if one_ticket_per_user is not None:
+            CONFIG["one_ticket_per_user"] = one_ticket_per_user
+            changes.append(f"one_ticket_per_user definido para {one_ticket_per_user}")
+        if enable_anonymous_reports is not None:
+            CONFIG["enable_anonymous_reports"] = enable_anonymous_reports
+            changes.append(f"enable_anonymous_reports definido para {enable_anonymous_reports}")
+        if rating_timeout_sec is not None:
+            CONFIG["rating_timeout_sec"] = rating_timeout_sec
+            changes.append(f"rating_timeout_sec definido para {rating_timeout_sec} segundos")
+        if sla_warn_hours is not None:
+            CONFIG["sla_warn_hours"] = sla_warn_hours
+            changes.append(f"sla_warn_hours definido para {sla_warn_hours} horas")
+        if sla_autoclose_hours is not None:
+            CONFIG["sla_autoclose_hours"] = sla_autoclose_hours
+            changes.append(f"sla_autoclose_hours definido para {sla_autoclose_hours} horas")
+
+        try:
+            # Load existing config to avoid overwriting unrelated values
+            if os.path.isfile(CONFIG_FILE):
+                with open(CONFIG_FILE, 'r') as f:
+                    existing = json.load(f)
+            else:
+                existing = {}
+            existing[CONFIG_KEY] = CONFIG
+            save_config(existing)
+        except Exception as e:
+            await interaction.response.send_message(f"Erro ao salvar configurações: {e}", ephemeral=True)
+            return
+    
+        save_config(CONFIG)
+
+        try:
+            with open(CONFIG_FILE, 'w') as f:
+                json.dump({"CONFIG": CONFIG}, f, indent=4)
+        except Exception as e:
+            await interaction.response.send_message(f"Erro ao salvar configurações: {e}", ephemeral=True)
+            return
+
+        embed = discord.Embed(title="Configurações de Tickets Atualizadas", description="\n".join(changes), colour=discord.Colour.blue(), timestamp=discord.utils.utcnow())
+        await interaction.response.send_message(embed=embed, ephemeral=True)
 
 async def setup(bot: commands.Bot):
     await bot.add_cog(Tickets(bot))
