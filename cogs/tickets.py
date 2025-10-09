@@ -21,7 +21,8 @@ def load_config() -> dict:
     if not os.path.isfile(CONFIG_FILE):
         print("Creating default config file...")
         default_config = {
-            "last_ticket_message_id": 0,
+            "last_ticket_message_id": None,
+            "last_ticket_channel_id": None,
             "ticket_category_id": 0,
             "panel_channel_id": 0,
             "staff_role_id": 0,
@@ -66,7 +67,37 @@ def check_configs():
         return True, f"Configuração ausente ou inválida: {', '.join(missing)}\nUtilize /ticket config para configurar o bot."
     return False, None
 
-# fazer check com last_ticket_message_id para verificar se o painel ja foi postado, se sim, continuar usando o mesmo (atualmente ele para de funcionar), deveria ser uma classe ou funcao?
+def clean_ids():
+    CONFIG["last_ticket_message_id"] = None
+    CONFIG["last_ticket_channel_id"] = None
+    save_config(CONFIG)
+    pass
+
+async def restore_panel(bot: commands.Bot):
+    await bot.wait_until_ready()
+
+    message_id = CONFIG.get("last_ticket_message_id")
+    channel_id = CONFIG.get("last_ticket_channel_id")
+    if not (message_id and channel_id):
+        return  # nothing to restore
+    bot.add_view(PanelView())
+
+    # try para resolver canal ou mensagem, ver se e valida
+    try:
+        channel = bot.get_channel(int(channel_id)) or await bot.fetch_channel(int(channel_id))
+        msg = await channel.fetch_message(int(message_id))
+        await msg.edit(view=PanelView())
+        print(f"[tickets] Restored ticket panel on message {msg.id} in channel {channel.id}")
+    except discord.NotFound:
+        print("[tickets] Could not restore ticket panel: message or channel not found.")
+        clean_ids()
+    except discord.Forbidden:
+        print("[tickets] Could not restore ticket panel: missing permissions to access channel or message.")
+        clean_ids()
+    except discord.HTTPException as e:
+        print(f"[tickets] Could not restore ticket panel: HTTP error {e}")
+    except Exception as e:
+        print(f"[tickets] Could not restore ticket panel: {e}")
 
 class TicketModal(discord.ui.Modal):
     def __init__(self, category: str, *, anonymous: bool = False):
@@ -121,7 +152,6 @@ class TicketModal(discord.ui.Modal):
         await interaction.followup.send(content=f"Ticket criado com sucesso: {channel.mention}", ephemeral=True)
 
 # painel de abertura de tickets
-# depois adicionar fail-safe para caso o bot desligue, o botao continuar funcionando (ao criar, salvar id da mensagem de ticket para recuperar)
 class PanelView(discord.ui.View):
     def __init__(self):
         super().__init__(timeout=None)
@@ -241,12 +271,19 @@ class Tickets(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
 
+    # recuperar painel
+    async def cog_load(self):
+        try:
+            asyncio.create_task(restore_panel(self.bot))
+        except Exception as e:
+            print(f"[tickets] Startup restore failed to schedule: {e}")
+
     # grupo de comandos /ticket
     group = app_commands.Group(name="ticket", description="Utilidades e configuracoes de tickets.")
 
     #publicar painel
     @group.command(name="panel", description="Publica o painel de abertura de tickets no canal atual.")
-    @app_commands.checks.has_roles(CONFIG.get("admin_role_id"))
+    @app_commands.checks.has_role(CONFIG.get("admin_role_id"))
     async def panel(self, interaction: discord.Interaction):
         # checagem de configs
         missing, message = check_configs()
@@ -255,20 +292,53 @@ class Tickets(commands.Cog):
             return False
 
         await interaction.response.send_message("Painel publicado.", ephemeral=True)
+
         embed = discord.Embed(title="Abertura de Tickets", description="Escolha uma das categorias abaixo para abrir seu ticket.", colour=discord.Colour.green())
         view = PanelView()
-        await interaction.channel.send(embed=embed, view=view)
+
+        msg = await interaction.channel.send(embed=embed, view=view)
+        # salvar id da mensagem e canal
+        CONFIG["last_ticket_message_id"] = msg.id
+        CONFIG["last_ticket_channel_id"] = msg.channel.id
+        save_config(CONFIG)
 
     #debug 
     @group.command(name="debug", description="Comando de debug (apenas admins).")
-    @app_commands.checks.has_roles(CONFIG.get("admin_role_id"))
+    @app_commands.checks.has_role(CONFIG.get("admin_role_id"))
     async def debug(self, interaction: discord.Interaction):
-        await interaction.response.send_message(f"Current CONFIG: {CONFIG}", ephemeral=True)
+        # format message to ping roles and channels within the config
+        message = f"Current CONFIG: {CONFIG}"
+        message += "\n\n**Roles:**"
+        for role_id in [CONFIG.get("staff_role_id"), CONFIG.get("admin_role_id")]:
+            role = interaction.guild.get_role(role_id)
+            if role:
+                message += f"\n- {role.mention} ({role.name})"
+        message += "\n\n**Channels:**"
+        for channel_id in [CONFIG.get("panel_channel_id"), CONFIG.get("logs_channel_id"), CONFIG.get("ticket_category_id")]:
+            channel = interaction.guild.get_channel(channel_id)
+            if channel:
+                message += f"\n- {channel.mention} ({channel.name})"
+
+        # get last ticket message and channel (example #tickets->message reference)
+        message += "\n\n**Messages:**"
+        last_ticket_channel = interaction.guild.get_channel(CONFIG.get("last_ticket_channel_id"))
+        last_ticket_message = CONFIG.get("last_ticket_message_id")
+
+        if last_ticket_channel and last_ticket_message:
+            try:
+                msg = await last_ticket_channel.fetch_message(last_ticket_message)
+                message += f"\n- Last ticket message found in {last_ticket_channel.mention}: {msg.jump_url}"
+            except Exception as e:
+                message += f"\n- Could not fetch last ticket message: {e}"
+        else:
+            message += "\n- No last ticket message or channel saved."
+
+        await interaction.response.send_message(message, ephemeral=True)
 
     # configurar tickets
     @group.command(name="config", description="Configura IDs de canais e cargos")
     @app_commands.describe(panel_channel_id="Canal onde o painel de tickets sera postado", logs_channel_id="Canal onde os logs de tickets serao enviados", ticket_category_id="Categoria onde os tickets serao criados", staff_role_id="Cargo que tera acesso aos tickets", admin_role_id="Cargo com permissoes administrativas no bot", one_ticket_per_user="Permitir apenas um ticket por usuario", enable_anonymous_reports="Permitir tickets anonimos", rating_timeout_sec="Tempo (em segundos) para aguardar avaliacao apos fechamento do ticket (default 20s)", sla_warn_hours="Horas para avisar sobre SLA (0 para desativar, default 24h)", sla_autoclose_hours="Horas para fechar automaticamente o ticket (0 para desativar, default 48h)")
-    @app_commands.checks.has_roles(CONFIG.get("admin_role_id"))
+    @app_commands.checks.has_role(CONFIG.get("admin_role_id"))
     async def config_cmd(self, interaction: discord.Interaction,
         panel_channel_id: Optional[discord.TextChannel] = None,
         logs_channel_id: Optional[discord.TextChannel] = None,
