@@ -112,9 +112,9 @@ class TicketModal(discord.ui.Modal):
         embed.add_field(name=interaction.user.display_name, value=author_label, inline=True)
         embed.add_field(name="descricao", value=self.desc.value, inline=False)
 
-        # CONFIGURAR CARGO STAFF DPS
+        # pingar cargo de staff 
         view = TicketControlsView(opener_id=interaction.user.id)
-        await channel.send(content=f"@.staff", embed=embed, view=view)
+        await channel.send(content=f"<@&.{CONFIG.get('staff_role_id')}>", embed=embed, view=view)
 
         await channel.send(f"{interaction.user.mention} criou um ticket na categoria **{self.category}**.")
 
@@ -139,7 +139,7 @@ class TicketControlsView(discord.ui.View):
     @discord.ui.button(label="assumir", style=discord.ButtonStyle.success, custom_id="ticket:claim")
     async def claim(self, interaction: discord.Interaction, button: discord.ui.Button):
         #checagem staff (depois fazer verificacao por cargos)
-        if not interaction.user.guild_permissions.manage_messages:
+        if not interaction.user.roles == interaction.guild.get_role(CONFIG.get("staff_role_id")):
             await interaction.response.send_message("Você não tem permissão para assumir tickets.", ephemeral=True)
             return
         await interaction.response.defer()
@@ -163,7 +163,7 @@ async def do_close(interaction: discord.Interaction, reason: str):
     assert guild and isinstance(channel, discord.TextChannel)
 
     # checagem staff (depois fazer verificacao por cargos)
-    if not interaction.user.guild_permissions.manage_messages:
+    if not interaction.user.roles == interaction.guild.get_role(CONFIG.get("staff_role_id")):
         await interaction.response.send_message("Você não tem permissão para fechar tickets.", ephemeral=True)
         return
 
@@ -246,7 +246,7 @@ class Tickets(commands.Cog):
 
     #publicar painel
     @group.command(name="panel", description="Publica o painel de abertura de tickets no canal atual.")
-    @app_commands.checks.has_permissions(manage_guild=True)
+    @app_commands.checks.has_roles(CONFIG.get("admin_role_id"))
     async def panel(self, interaction: discord.Interaction):
         # checagem de configs
         missing, message = check_configs()
@@ -261,14 +261,14 @@ class Tickets(commands.Cog):
 
     #debug 
     @group.command(name="debug", description="Comando de debug (apenas admins).")
-    @app_commands.checks.has_permissions(administrator=True)
+    @app_commands.checks.has_roles(CONFIG.get("admin_role_id"))
     async def debug(self, interaction: discord.Interaction):
         await interaction.response.send_message(f"Current CONFIG: {CONFIG}", ephemeral=True)
 
     # configurar tickets
     @group.command(name="config", description="Configura IDs de canais e cargos")
     @app_commands.describe(panel_channel_id="Canal onde o painel de tickets sera postado", logs_channel_id="Canal onde os logs de tickets serao enviados", ticket_category_id="Categoria onde os tickets serao criados", staff_role_id="Cargo que tera acesso aos tickets", admin_role_id="Cargo com permissoes administrativas no bot", one_ticket_per_user="Permitir apenas um ticket por usuario", enable_anonymous_reports="Permitir tickets anonimos", rating_timeout_sec="Tempo (em segundos) para aguardar avaliacao apos fechamento do ticket (default 20s)", sla_warn_hours="Horas para avisar sobre SLA (0 para desativar, default 24h)", sla_autoclose_hours="Horas para fechar automaticamente o ticket (0 para desativar, default 48h)")
-    @app_commands.checks.has_permissions(administrator=True)
+    @app_commands.checks.has_roles(CONFIG.get("admin_role_id"))
     async def config_cmd(self, interaction: discord.Interaction,
         panel_channel_id: Optional[discord.TextChannel] = None,
         logs_channel_id: Optional[discord.TextChannel] = None,
