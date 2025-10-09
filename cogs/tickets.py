@@ -173,7 +173,7 @@ async def do_close(interaction: discord.Interaction, reason: str):
 
     class RatingView(discord.ui.View):
         def __init__(self):
-            super().__init__(timeout=60)  # expira em 60 segundos, dps adc config
+            super().__init__(timeout=config["rating_timeout"])
             self.value: Optional[int] = None
 
         @discord.ui.button(label="1", style=discord.ButtonStyle.secondary)
