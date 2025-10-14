@@ -5,6 +5,7 @@ from typing import Optional
 import discord
 from discord import app_commands
 from discord.ext import commands
+from discord.ui import View, Button
 
 CONFIG = {
     "ticket_category_id": 901812309305991188, 
@@ -67,6 +68,34 @@ class Tickets(commands.Cog):
         embed = discord.Embed(title="Abertura de Tickets", description="Escolha uma das categorias abaixo para abrir seu ticket.", colour=discord.Colour.green())
         view = PanelView()
         await interaction.channel.send(embed=embed, view=view)
-
+        
+class TicketView(View):
+    def __init__(self):
+        super().__init__(timeout=None)
+        
+    @discord.ui.button(label="Suporte",
+                       style=discord.ButtonStyle.primary,
+                       emoji="🎫",
+                       custom_id="persistent_view:suporte")
+    async def suporte_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.send_message("Você selecionou **Suporte**. Criando seu ticket...", ephemeral=True)
+        
+    @discord.ui.button(label="Denúncia",
+                       style=discord.ButtonStyle.danger,
+                       emoji="❌",
+                       custom_id="persistent_view:denuncia")
+    async def denuncia_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.send_message("Você selecionou **Denúncia**. Criando seu ticket...", ephemeral=True)
+        
+    @discord.ui.button(label="Loja",
+                       style=discord.ButtonStyle.sucess,
+                       emoji="🛒",
+                       custom_id="persistent_view:loja")
+    async def loja_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.send_message("Você selecionou **Loja**. Criando seu ticket...", ephemeral=True)  
+    
+async def setup_hook(self) -> None:
+    self.add_view(TicketView())
+                 
 async def setup(bot: commands.Bot):
     await bot.add_cog(Tickets(bot))
