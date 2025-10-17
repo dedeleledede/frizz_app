@@ -5,6 +5,7 @@ from typing import Optional
 import discord
 from discord import app_commands
 from discord.ext import commands
+from discord.ui import View, Button
 
 # ========= Helpers =========
 
@@ -45,9 +46,22 @@ CONFIG = load_config()
 
 # construir nome do canal
 def build_channel_name(category: str, author: discord.Member) -> str:
+    # normaliza so para comparar
+    cat = (category or "ticket").strip().lower()
+
+    # mapeamento minimo
+    if cat in ("suporte",):
+        emoji, prefix = "🎫", "suporte"
+    elif cat in ("denúncia", "denuncia"):
+        emoji, prefix = "🚨", "denuncia"
+    elif cat in ("loja",):
+        emoji, prefix = "🛒", "loja"
+    else:
+        #basecase
+        emoji, prefix = "🎟️", "ticket"
+
     short = author.display_name.lower().replace(' ', '-')[:16]
-    emoji = {"teste":"🤡"}.get(category, "🤡")
-    return f"{emoji}ticket-{short}"
+    return f"{emoji}{prefix}-{short}"
 
 # checar se as configs basicas estao ok
 def check_configs():
@@ -119,16 +133,24 @@ class TicketModal(discord.ui.Modal):
         await channel.send(f"{interaction.user.mention} criou um ticket na categoria **{self.category}**.")
 
         await interaction.followup.send(content=f"Ticket criado com sucesso: {channel.mention}", ephemeral=True)
-
+        
 # painel de abertura de tickets
 # depois adicionar fail-safe para caso o bot desligue, o botao continuar funcionando (ao criar, salvar id da mensagem de ticket para recuperar)
 class PanelView(discord.ui.View):
     def __init__(self):
         super().__init__(timeout=None)
 
-    @discord.ui.button(label="Criar teste ticket", style=discord.ButtonStyle.primary, custom_id="create_ticket_button")
+    @discord.ui.button(label="Criar ticket suporte", style=discord.ButtonStyle.primary, custom_id="create_ticket_suporte", emoji="🎫")
     async def create_ticket_button(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await interaction.response.send_modal(TicketModal("teste"))
+        await interaction.response.send_modal(TicketModal("Suporte"))
+        
+    @discord.ui.button(label="Criar ticket denúncia", style=discord.ButtonStyle.danger, custom_id="create_ticket_denuncia", emoji="🚨")
+    async def create_ticket_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.send_modal(TicketModal("Denúncia"))
+        
+    @discord.ui.button(label="Criar ticket loja", style=discord.ButtonStyle.success, custom_id="create_ticket_loja", emoji="🛒")
+    async def create_ticket_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.send_modal(TicketModal("Loja"))
 
 # controles dentro do ticket para visualizacao e gerenciamento
 class TicketControlsView(discord.ui.View):
@@ -258,85 +280,6 @@ class Tickets(commands.Cog):
         embed = discord.Embed(title="Abertura de Tickets", description="Escolha uma das categorias abaixo para abrir seu ticket.", colour=discord.Colour.green())
         view = PanelView()
         await interaction.channel.send(embed=embed, view=view)
-
-    #debug 
-    @group.command(name="debug", description="Comando de debug (apenas admins).")
-    @app_commands.checks.has_permissions(administrator=True)
-    async def debug(self, interaction: discord.Interaction):
-        await interaction.response.send_message(f"Current CONFIG: {CONFIG}", ephemeral=True)
-
-    # configurar tickets
-    @group.command(name="config", description="Configura IDs de canais e cargos")
-    @app_commands.describe(panel_channel_id="Canal onde o painel de tickets sera postado", logs_channel_id="Canal onde os logs de tickets serao enviados", ticket_category_id="Categoria onde os tickets serao criados", staff_role_id="Cargo que tera acesso aos tickets", admin_role_id="Cargo com permissoes administrativas no bot", one_ticket_per_user="Permitir apenas um ticket por usuario", enable_anonymous_reports="Permitir tickets anonimos", rating_timeout_sec="Tempo (em segundos) para aguardar avaliacao apos fechamento do ticket (default 20s)", sla_warn_hours="Horas para avisar sobre SLA (0 para desativar, default 24h)", sla_autoclose_hours="Horas para fechar automaticamente o ticket (0 para desativar, default 48h)")
-    @app_commands.checks.has_permissions(administrator=True)
-    async def config_cmd(self, interaction: discord.Interaction,
-        panel_channel_id: Optional[discord.TextChannel] = None,
-        logs_channel_id: Optional[discord.TextChannel] = None,
-        ticket_category_id: Optional[discord.CategoryChannel] = None,
-        staff_role_id: Optional[discord.Role] = None,
-        admin_role_id: Optional[discord.Role] = None,
-        one_ticket_per_user: Optional[bool] = None,
-        enable_anonymous_reports: Optional[bool] = None,
-        rating_timeout_sec: Optional[int] = None,
-        sla_warn_hours: Optional[int] = None,
-        sla_autoclose_hours: Optional[int] = None
-    ):
-        changes = []
-        if panel_channel_id is not None:
-            CONFIG["panel_channel_id"] = panel_channel_id.id if hasattr(panel_channel_id, "id") else panel_channel_id
-            changes.append(f"panel_channel_id definido para <#{CONFIG['panel_channel_id']}>")
-        if logs_channel_id is not None:
-            CONFIG["logs_channel_id"] = logs_channel_id.id if hasattr(logs_channel_id, "id") else logs_channel_id
-            changes.append(f"logs_channel_id definido para <#{CONFIG['logs_channel_id']}>")
-        if ticket_category_id is not None:
-            CONFIG["ticket_category_id"] = ticket_category_id.id if hasattr(ticket_category_id, "id") else ticket_category_id
-            changes.append(f"ticket_category_id definido para <#{CONFIG['ticket_category_id']}>")
-        if staff_role_id is not None:
-            CONFIG["staff_role_id"] = staff_role_id.id if hasattr(staff_role_id, "id") else staff_role_id
-            changes.append(f"staff_role_id definido para <@&{CONFIG['staff_role_id']}>")
-        if admin_role_id is not None:
-            CONFIG["admin_role_id"] = admin_role_id.id if hasattr(admin_role_id, "id") else admin_role_id
-            changes.append(f"admin_role_id definido para <@&{CONFIG['admin_role_id']}>")
-        if one_ticket_per_user is not None:
-            CONFIG["one_ticket_per_user"] = one_ticket_per_user
-            changes.append(f"one_ticket_per_user definido para {one_ticket_per_user}")
-        if enable_anonymous_reports is not None:
-            CONFIG["enable_anonymous_reports"] = enable_anonymous_reports
-            changes.append(f"enable_anonymous_reports definido para {enable_anonymous_reports}")
-        if rating_timeout_sec is not None:
-            CONFIG["rating_timeout_sec"] = rating_timeout_sec
-            changes.append(f"rating_timeout_sec definido para {rating_timeout_sec} segundos")
-        if sla_warn_hours is not None:
-            CONFIG["sla_warn_hours"] = sla_warn_hours
-            changes.append(f"sla_warn_hours definido para {sla_warn_hours} horas")
-        if sla_autoclose_hours is not None:
-            CONFIG["sla_autoclose_hours"] = sla_autoclose_hours
-            changes.append(f"sla_autoclose_hours definido para {sla_autoclose_hours} horas")
-
-        try:
-            # Load existing config to avoid overwriting unrelated values
-            if os.path.isfile(CONFIG_FILE):
-                with open(CONFIG_FILE, 'r') as f:
-                    existing = json.load(f)
-            else:
-                existing = {}
-            existing[CONFIG_KEY] = CONFIG
-            save_config(existing)
-        except Exception as e:
-            await interaction.response.send_message(f"Erro ao salvar configurações: {e}", ephemeral=True)
-            return
-    
-        save_config(CONFIG)
-
-        try:
-            with open(CONFIG_FILE, 'w') as f:
-                json.dump({"CONFIG": CONFIG}, f, indent=4)
-        except Exception as e:
-            await interaction.response.send_message(f"Erro ao salvar configurações: {e}", ephemeral=True)
-            return
-
-        embed = discord.Embed(title="Configurações de Tickets Atualizadas", description="\n".join(changes), colour=discord.Colour.blue(), timestamp=discord.utils.utcnow())
-        await interaction.response.send_message(embed=embed, ephemeral=True)
-
+                 
 async def setup(bot: commands.Bot):
     await bot.add_cog(Tickets(bot))
