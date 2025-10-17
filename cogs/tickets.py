@@ -1,6 +1,8 @@
 import asyncio, os, json
 import datetime
 from typing import Optional
+from zoneinfo import ZoneInfo
+import re
 
 import discord
 from discord import app_commands
@@ -72,6 +74,12 @@ def clean_ids():
     CONFIG["last_ticket_channel_id"] = None
     save_config(CONFIG)
     pass
+
+# remover caracteres invalidos em arquivos
+def safe_filename_part(s: str, maxlen: int = 100) -> str:
+    s = re.sub(r'[\\/:"*?<>|]+', '_', s)
+    s = re.sub(r'\s+', '_', s).strip('_')
+    return s[:maxlen]
 
 async def restore_panel(bot: commands.Bot):
     await bot.wait_until_ready()
@@ -236,7 +244,25 @@ async def do_close(interaction: discord.Interaction, reason: str):
     rating = view.value
 
     # HTML TRANSCRIPT
-    print("obter transcript (futuro)")
+
+    transcript_file = None
+    try:
+        import chat_exporter
+            #timezone: gmc -3 arrumar
+            export = await chat_exporter(channel, limit=None, tz_info="America/Sao_Paulo", military_time=True, bot=bot)
+        
+        if export is not None:
+            html_bytes = export.encode('utf-8')
+            transcript_file = discord.File(fp=discord.BytesIO(html_bytes)), filename=f"{channel.name}-{discord.utils.format_dt(ts, style="R")}.html"
+
+        # timezone-aware timestamp in user's timezone (America/Sao_Paulo)
+        now = datetime.now(ZoneInfo("America/Sao_Paulo"))
+        timestamp = now.strftime("%Y%m%d-%H%M%S")  # ex 20251009-142530
+
+        channel_part = safe_filename_part(getattr(channel, "name", f"channel-{channel.id}"))
+        filename = f"{channel_part}-{timestamp}.html"
+        
+    
     # remover permissao de escrita para todos (exceto staff)
     overwrites = channel.overwrites
     author_id = extract_author_id(channel.topic)
