@@ -179,15 +179,15 @@ class PanelView(discord.ui.View):
         super().__init__(timeout=None)
 
     @discord.ui.button(label="Criar ticket suporte", style=discord.ButtonStyle.primary, custom_id="create_ticket_suporte", emoji="🎫")
-    async def create_ticket_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+    async def create_ticket_suporte(self, interaction: discord.Interaction, button: discord.ui.Button):
         await interaction.response.send_modal(TicketModal("Suporte"))
         
     @discord.ui.button(label="Criar ticket denúncia", style=discord.ButtonStyle.danger, custom_id="create_ticket_denuncia", emoji="🚨")
-    async def create_ticket_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+    async def create_ticket_denuncia(self, interaction: discord.Interaction, button: discord.ui.Button):
         await interaction.response.send_modal(TicketModal("Denúncia"))
         
     @discord.ui.button(label="Criar ticket loja", style=discord.ButtonStyle.success, custom_id="create_ticket_loja", emoji="🛒")
-    async def create_ticket_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+    async def create_ticket_loja(self, interaction: discord.Interaction, button: discord.ui.Button):
         await interaction.response.send_modal(TicketModal("Loja"))
 
 # controles dentro do ticket para visualizacao e gerenciamento
@@ -267,22 +267,24 @@ async def do_close(interaction: discord.Interaction, reason: str):
 
     # HTML TRANSCRIPT
 
-    transcript_file = None
-    try:
-        import chat_exporter
-            #timezone: gmc -3 arrumar
-            export = await chat_exporter(channel, limit=None, tz_info="America/Sao_Paulo", military_time=True, bot=bot)
+#    transcript_file = None
+#    try:
+#        import chat_exporter
+#        #timezone: gmc -3 arrumar
+#        export = await chat_exporter(channel, limit=None, tz_info="America/Sao_Paulo", military_time=True, bot=bot)
         
-        if export is not None:
-            html_bytes = export.encode('utf-8')
-            transcript_file = discord.File(fp=discord.BytesIO(html_bytes)), filename=f"{channel.name}-{discord.utils.format_dt(ts, style="R")}.html"
+#        if export is not None:
+#            html_bytes = export.encode('utf-8')
+#            transcript_file = discord.File(fp=discord.BytesIO(html_bytes)), filename=f"{channel.name}-{discord.utils.format_dt(ts, style="R")}.html"
 
-        # timezone-aware timestamp in user's timezone (America/Sao_Paulo)
-        now = datetime.now(ZoneInfo("America/Sao_Paulo"))
-        timestamp = now.strftime("%Y%m%d-%H%M%S")  # ex 20251009-142530
-
-        channel_part = safe_filename_part(getattr(channel, "name", f"channel-{channel.id}"))
-        filename = f"{channel_part}-{timestamp}.html"
+#        # timezone-aware timestamp in user's timezone (America/Sao_Paulo)
+#        now = datetime.now(ZoneInfo("America/Sao_Paulo"))
+#        timestamp = now.strftime("%Y%m%d-%H%M%S")  # ex 20251009-142530
+#
+#        channel_part = safe_filename_part(getattr(channel, "name", f"channel-{channel.id}"))
+#        filename = f"{channel_part}-{timestamp}.html"
+#    except Exception:
+#        pass
         
     
     # remover permissao de escrita para todos (exceto staff)
