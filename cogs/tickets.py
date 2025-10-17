@@ -7,6 +7,7 @@ import re
 import discord
 from discord import app_commands
 from discord.ext import commands
+from discord.ui import View, Button
 
 # ========= Helpers =========
 
@@ -48,9 +49,22 @@ CONFIG = load_config()
 
 # construir nome do canal
 def build_channel_name(category: str, author: discord.Member) -> str:
+    # normaliza so para comparar
+    cat = (category or "ticket").strip().lower()
+
+    # mapeamento minimo
+    if cat in ("suporte",):
+        emoji, prefix = "🎫", "suporte"
+    elif cat in ("denúncia", "denuncia"):
+        emoji, prefix = "🚨", "denuncia"
+    elif cat in ("loja",):
+        emoji, prefix = "🛒", "loja"
+    else:
+        #basecase
+        emoji, prefix = "🎟️", "ticket"
+
     short = author.display_name.lower().replace(' ', '-')[:16]
-    emoji = {"teste":"🤡"}.get(category, "🤡")
-    return f"{emoji}ticket-{short}"
+    return f"{emoji}{prefix}-{short}"
 
 # checar se as configs basicas estao ok
 def check_configs():
@@ -158,15 +172,23 @@ class TicketModal(discord.ui.Modal):
         await channel.send(f"{interaction.user.mention} criou um ticket na categoria **{self.category}**.")
 
         await interaction.followup.send(content=f"Ticket criado com sucesso: {channel.mention}", ephemeral=True)
-
+        
 # painel de abertura de tickets
 class PanelView(discord.ui.View):
     def __init__(self):
         super().__init__(timeout=None)
 
-    @discord.ui.button(label="Criar teste ticket", style=discord.ButtonStyle.primary, custom_id="create_ticket_button")
+    @discord.ui.button(label="Criar ticket suporte", style=discord.ButtonStyle.primary, custom_id="create_ticket_suporte", emoji="🎫")
     async def create_ticket_button(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await interaction.response.send_modal(TicketModal("teste"))
+        await interaction.response.send_modal(TicketModal("Suporte"))
+        
+    @discord.ui.button(label="Criar ticket denúncia", style=discord.ButtonStyle.danger, custom_id="create_ticket_denuncia", emoji="🚨")
+    async def create_ticket_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.send_modal(TicketModal("Denúncia"))
+        
+    @discord.ui.button(label="Criar ticket loja", style=discord.ButtonStyle.success, custom_id="create_ticket_loja", emoji="🛒")
+    async def create_ticket_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.send_modal(TicketModal("Loja"))
 
 # controles dentro do ticket para visualizacao e gerenciamento
 class TicketControlsView(discord.ui.View):
