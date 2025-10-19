@@ -196,7 +196,7 @@ class TicketControlsView(discord.ui.View):
         super().__init__(timeout=None)
         self.opener_id = opener_id
 
-    @discord.ui.button(label="assumir", style=discord.ButtonStyle.success, custom_id="ticket:claim")
+    @discord.ui.button(label="Assumir", style=discord.ButtonStyle.success, custom_id="ticket:claim")
     async def claim(self, interaction: discord.Interaction, button: discord.ui.Button):
         #checagem staff (depois fazer verificacao por cargos)
         if not interaction.user.roles == interaction.guild.get_role(CONFIG.get("staff_role_id")):
@@ -210,7 +210,7 @@ class TicketControlsView(discord.ui.View):
         else:
             await interaction.followup.send("ticket assumido", ephemeral=True)
 
-    @discord.ui.button(label="fechar", style=discord.ButtonStyle.danger, custom_id="ticket:close")
+    @discord.ui.button(label="Fechar", style=discord.ButtonStyle.danger, custom_id="ticket:close")
 
     async def close(self, interaction: discord.Interaction, button: discord.ui.Button):
         await do_close(interaction, reason="Fechado via botão")
