@@ -333,7 +333,7 @@ class Tickets(commands.Cog):
 
     #publicar painel
     @group.command(name="panel", description="Publica o painel de abertura de tickets no canal atual.")
-    @app_commands.checks.has_role(CONFIG.get("admin_role_id"))
+    @app_commands.checks.has_role(CONFIG.get("staff_role_id"))
     async def panel(self, interaction: discord.Interaction):
         # checagem de configs
         missing, message = check_configs()
