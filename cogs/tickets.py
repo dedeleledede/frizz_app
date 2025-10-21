@@ -451,6 +451,7 @@ class Tickets(commands.Cog):
         try:
             with open(CONFIG_FILE, 'w') as f:
                 json.dump({"CONFIG": CONFIG}, f, indent=4)
+                load_config()
         except Exception as e:
             await interaction.response.send_message(f"Erro ao salvar configurações: {e}", ephemeral=True)
             return
