@@ -353,30 +353,32 @@ class Tickets(commands.Cog):
         save_config(CONFIG)
         
     #comando de /ticket lock
-    @group.command(name="lock", description="Comando de lock (apenas para staff).")
-    @app_commands.checks.has_permissions(manage_channels=True)
+    @group.command(name="lock", description="Comando de lock (apenas para staff).") 
+    @app_commands.checks.has_permissions(manage_channels=True) 
     async def tiket_lock(self, interaction: discord.Interaction):
         
         canal = interaction.channel
         everyone_role = interaction.guild.default_role
         overwrites = canal.overwrites_for(everyone_role)
         
-    if overwrites.send_messages is False:
-        await interaction.response.send_message("Este canal já está fechado.", ephemeral=True)
-        return
+        if overwrites.send_messages is False:
+            await interaction.response.send_message("Este canal já está fechado.", ephemeral=True)
+            return
+
+        overwrites.send_messages = False
     
-    overwrites.send_messages = False
+        try:
+            await canal.set_permissions(everyone_role, overwrite=overwrites)
+            await interaction.response.send_message("Canal trancado com sucesso.", ephemeral=True)
+            await canal.send(f"Este ticket foi trancado por {interaction.user.mention}")
         
-    try:
-        await canal.set_permissions(everyone_role, overwrite=overwrites)
+        except discord.Forbidden:
         
-        await interaction.response.send_message("Canal trancado com sucesso.", ephemeral=True)
-        await canal.send(f"Este ticket foi trancado por {interaction.user.mention}")
+            await interaction.response.send_message("Erro: Eu não tenho permissão para 'Gerenciar Canais' aqui.", ephemeral=True)
         
-    except discord.Forbidden:
-        await interaction.response.send_message("Erro: Eu não tenho permissão para 'Gerenciar Canais' aqui.", ephemeral=True)
-    except Exception as e:
-        await interaction.response.send_message(f"Ocorreu um erro inesperado: {e}", ephemeral=True)                  
+        except Exception as e:
+        
+            await interaction.response.send_message(f"Ocorreu um erro inesperado: {e}", ephemeral=True)                  
 
     #debug 
     @group.command(name="debug", description="Comando de debug (apenas admins).")
