@@ -178,15 +178,15 @@ class PanelView(discord.ui.View):
     def __init__(self):
         super().__init__(timeout=None)
 
-    @discord.ui.button(label="Criar ticket suporte", style=discord.ButtonStyle.primary, custom_id="create_ticket_suporte", emoji="🎫")
+    @discord.ui.button(label="Suporte", style=discord.ButtonStyle.primary, custom_id="create_ticket_suporte", emoji="🎫")
     async def create_ticket_suporte(self, interaction: discord.Interaction, button: discord.ui.Button):
         await interaction.response.send_modal(TicketModal("Suporte"))
         
-    @discord.ui.button(label="Criar ticket denúncia", style=discord.ButtonStyle.danger, custom_id="create_ticket_denuncia", emoji="🚨")
+    @discord.ui.button(label="Denúncia", style=discord.ButtonStyle.danger, custom_id="create_ticket_denuncia", emoji="🚨")
     async def create_ticket_denuncia(self, interaction: discord.Interaction, button: discord.ui.Button):
         await interaction.response.send_modal(TicketModal("Denúncia"))
         
-    @discord.ui.button(label="Criar ticket loja", style=discord.ButtonStyle.success, custom_id="create_ticket_loja", emoji="🛒")
+    @discord.ui.button(label="Loja", style=discord.ButtonStyle.success, custom_id="create_ticket_loja", emoji="🛒")
     async def create_ticket_loja(self, interaction: discord.Interaction, button: discord.ui.Button):
         await interaction.response.send_modal(TicketModal("Loja"))
 
