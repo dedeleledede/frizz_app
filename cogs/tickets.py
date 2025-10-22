@@ -1,7 +1,7 @@
 import asyncio, os, json
-import datetime
 from typing import Optional
 from zoneinfo import ZoneInfo
+from io import BytesIO
 import re
 
 import discord
@@ -9,6 +9,12 @@ from discord import app_commands
 from discord.ext import commands
 from discord.ui import View, Button
 
+import datetime as dt
+try:
+    from zoneinfo import ZoneInfo
+    SAO_TZ = ZoneInfo("America/Sao_Paulo")
+except Exception:
+    SAO_TZ = dt.timezone(dt.timedelta(hours=-3))  
 # ========= Helpers =========
 
 # guardar em um txt externo com o config para nao perder ao reiniciar bot
@@ -17,8 +23,8 @@ CONFIG_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'co
 CONFIG_KEY = "CONFIG"
 
 def save_config(config: dict):
-    with open(CONFIG_FILE, 'w') as f:
-        json.dump({CONFIG_KEY: config}, f, indent=4)
+    with open(CONFIG_FILE, 'w', encoding='utf-8') as f:
+        json.dump({CONFIG_KEY: config}, f, indent=4, ensure_ascii = False)
 
 def load_config() -> dict:
     if not os.path.isfile(CONFIG_FILE):
@@ -38,6 +44,7 @@ def load_config() -> dict:
             "sla_autoclose_hours": 48
         }
         save_config(default_config)
+        
     with open(CONFIG_FILE, 'r') as f:
         return json.load(f).get(CONFIG_KEY, {})
 
@@ -199,7 +206,7 @@ class TicketControlsView(discord.ui.View):
     @discord.ui.button(label="assumir", style=discord.ButtonStyle.success, custom_id="ticket:claim")
     async def claim(self, interaction: discord.Interaction, button: discord.ui.Button):
         #checagem staff (depois fazer verificacao por cargos)
-        if not interaction.user.roles == interaction.guild.get_role(CONFIG.get("staff_role_id")):
+        if not interaction.guild.get_role(CONFIG.get("staff_role_id")) in interaction.user.roles:
             await interaction.response.send_message("Você não tem permissão para assumir tickets.", ephemeral=True)
             return
         await interaction.response.defer()
@@ -223,7 +230,7 @@ async def do_close(interaction: discord.Interaction, reason: str):
     assert guild and isinstance(channel, discord.TextChannel)
 
     # checagem staff (depois fazer verificacao por cargos)
-    if not interaction.user.roles == interaction.guild.get_role(CONFIG.get("staff_role_id")):
+    if not interaction.guild.get_role(CONFIG.get("staff_role_id")) in interaction.user.roles:
         await interaction.response.send_message("Você não tem permissão para fechar tickets.", ephemeral=True)
         return
 
@@ -233,7 +240,7 @@ async def do_close(interaction: discord.Interaction, reason: str):
 
     class RatingView(discord.ui.View):
         def __init__(self):
-            super().__init__(timeout=config["rating_timeout"])
+            super().__init__(timeout=CONFIG.get("rating_timeout"))
             self.value: Optional[int] = None
 
         @discord.ui.button(label="1", style=discord.ButtonStyle.secondary)
@@ -266,26 +273,42 @@ async def do_close(interaction: discord.Interaction, reason: str):
     rating = view.value
 
     # HTML TRANSCRIPT
+    transcript_file = None
+    transcript_err_note = ""    
+    try:
+        import chat_exporter
+        export = await chat_exporter.export(channel=channel, limit=None, tz_info='America/Sao_Paulo', military_time=True, bot=interaction.client)
+    
+        if export is not None:
+            html_bytes = export.encode('utf-8')
 
-#    transcript_file = None
-#    try:
-#        import chat_exporter
-#        #timezone: gmc -3 arrumar
-#        export = await chat_exporter(channel, limit=None, tz_info="America/Sao_Paulo", military_time=True, bot=bot)
-        
-#        if export is not None:
-#            html_bytes = export.encode('utf-8')
-#            transcript_file = discord.File(fp=discord.BytesIO(html_bytes)), filename=f"{channel.name}-{discord.utils.format_dt(ts, style="R")}.html"
+            now = dt.datetime.now(SAO_TZ)
+            timestamp = now.strftime("%Y%m%d-%H%M%S")  # ex 20251009-142530
 
-#        # timezone-aware timestamp in user's timezone (America/Sao_Paulo)
-#        now = datetime.now(ZoneInfo("America/Sao_Paulo"))
-#        timestamp = now.strftime("%Y%m%d-%H%M%S")  # ex 20251009-142530
-#
-#        channel_part = safe_filename_part(getattr(channel, "name", f"channel-{channel.id}"))
-#        filename = f"{channel_part}-{timestamp}.html"
-#    except Exception:
-#        pass
-        
+            channel_part = safe_filename_part(getattr(channel, "name", f"channel-{channel.id}"))
+            filename=f"{channel_part}-{timestamp}.html"
+
+            transcript_file = discord.File(fp=BytesIO(html_bytes), filename=filename)
+
+    except Exception as e:
+        try:
+            await channel.send(f"Não foi possível gerar o HTML automático ({e}). Vou fechar sem transcript.")
+            transcript_err_note = f" | TranscriptError: {e!r}"
+        except Exception:
+            pass
+
+    logs_channel = guild.get_channel(CONFIG.get("logs_channel_id")) if CONFIG.get("logs_channel_id") != 0 else None
+    meta = f"Ticket: {channel.name} | Author: {extract_author_id(channel.topic)} | Categoria: {extract_category(channel.topic)} | Nota: {rating if rating else 'N/A'} | Motivo: {reason}{transcript_err_note}"
+
+    if logs_channel and isinstance(logs_channel, discord.TextChannel):
+        try:
+            if transcript_file:
+                await logs_channel.send(content=meta, file=transcript_file)
+            else:
+                await logs_channel.send(content=meta)
+        except Exception as e:
+            print(e)
+            pass
     
     # remover permissao de escrita para todos (exceto staff)
     overwrites = channel.overwrites
@@ -317,6 +340,14 @@ def extract_author_id(topic: Optional[str]) -> Optional[int]:
         print(f"ERROR EXTRACTING ID: {e}")
         return None
  
+def extract_category(topic: Optional[str]) -> str:
+    if not topic:
+        return "desconhecida"
+    for part in topic.split(';'):
+        if 'ticket_category=' in part:
+            return part.split('=')[1].strip()
+    return "desconhecida"
+
 class Tickets(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
@@ -436,22 +467,24 @@ class Tickets(commands.Cog):
         try:
             # Load existing config to avoid overwriting unrelated values
             if os.path.isfile(CONFIG_FILE):
-                with open(CONFIG_FILE, 'r') as f:
+                with open(CONFIG_FILE, 'r', encoding='utf-8') as f:
                     existing = json.load(f)
             else:
                 existing = {}
+
             existing[CONFIG_KEY] = CONFIG
-            save_config(existing)
+            with open(CONFIG_FILE, 'w', encoding='utf-8') as f:
+                json.dump(existing, f, indent=4)
+
         except Exception as e:
             await interaction.response.send_message(f"Erro ao salvar configurações: {e}", ephemeral=True)
             return
-    
-        save_config(CONFIG)
 
         try:
-            with open(CONFIG_FILE, 'w') as f:
+            with open(CONFIG_FILE, 'w', encoding='utf-8') as f:
                 json.dump({"CONFIG": CONFIG}, f, indent=4)
-                load_config()
+            CONFIG.clear()
+            CONFIG.update(load_config())
         except Exception as e:
             await interaction.response.send_message(f"Erro ao salvar configurações: {e}", ephemeral=True)
             return
