@@ -203,7 +203,7 @@ class TicketControlsView(discord.ui.View):
         super().__init__(timeout=None)
         self.opener_id = opener_id
 
-    @discord.ui.button(label="assumir", style=discord.ButtonStyle.success, custom_id="ticket:claim")
+    @discord.ui.button(label="Assumir", style=discord.ButtonStyle.success, custom_id="ticket:claim")
     async def claim(self, interaction: discord.Interaction, button: discord.ui.Button):
         #checagem staff (depois fazer verificacao por cargos)
         if not interaction.guild.get_role(CONFIG.get("staff_role_id")) in interaction.user.roles:
@@ -217,7 +217,7 @@ class TicketControlsView(discord.ui.View):
         else:
             await interaction.followup.send("ticket assumido", ephemeral=True)
 
-    @discord.ui.button(label="fechar", style=discord.ButtonStyle.danger, custom_id="ticket:close")
+    @discord.ui.button(label="Fechar", style=discord.ButtonStyle.danger, custom_id="ticket:close")
 
     async def close(self, interaction: discord.Interaction, button: discord.ui.Button):
         await do_close(interaction, reason="Fechado via botão")
@@ -364,7 +364,7 @@ class Tickets(commands.Cog):
 
     #publicar painel
     @group.command(name="panel", description="Publica o painel de abertura de tickets no canal atual.")
-    @app_commands.checks.has_role(CONFIG.get("admin_role_id"))
+    @app_commands.checks.has_permissions(administrator=True)
     async def panel(self, interaction: discord.Interaction):
         # checagem de configs
         missing, message = check_configs()
@@ -382,6 +382,34 @@ class Tickets(commands.Cog):
         CONFIG["last_ticket_message_id"] = msg.id
         CONFIG["last_ticket_channel_id"] = msg.channel.id
         save_config(CONFIG)
+        
+    #comando de /ticket lock
+    @group.command(name="lock", description="Comando de lock (apenas para staff).") 
+    @app_commands.checks.has_permissions(manage_channels=True) 
+    async def tiket_lock(self, interaction: discord.Interaction):
+        
+        canal = interaction.channel
+        everyone_role = interaction.guild.default_role
+        overwrites = canal.overwrites_for(everyone_role)
+        
+        if overwrites.send_messages is False:
+            await interaction.response.send_message("Este canal já está fechado.", ephemeral=True)
+            return
+
+        overwrites.send_messages = False
+    
+        try:
+            await canal.set_permissions(everyone_role, overwrite=overwrites)
+            await interaction.response.send_message("Canal trancado com sucesso.", ephemeral=True)
+            await canal.send(f"Este ticket foi trancado por {interaction.user.mention}")
+        
+        except discord.Forbidden:
+        
+            await interaction.response.send_message("Erro: Eu não tenho permissão para 'Gerenciar Canais' aqui.", ephemeral=True)
+        
+        except Exception as e:
+        
+            await interaction.response.send_message(f"Ocorreu um erro inesperado: {e}", ephemeral=True)                  
 
     #debug 
     @group.command(name="debug", description="Comando de debug (apenas admins).")
