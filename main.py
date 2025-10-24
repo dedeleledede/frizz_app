@@ -11,7 +11,7 @@ if PARENT_DIR not in sys.path:
 
 import config
 
-token = config.DEBUG_TOKEN
+token = config.TOKEN
 
 # --- SELF UPDATE ---
 def self_update():
