@@ -352,7 +352,7 @@ class GiveawayManager(commands.Cog):
         k = min(g.winners, len(pool))
         winners = random.sample(pool, k)
         mentions = " ".join(f"<@{i}>" for i in winners)
-        await ch.send(f"Sorteio {giveaway_id} encerrado. Vencedores: {mentions}")
+        await ch.send(f":tada: Parabéns ao ganhador, {mentions}! Você ganhou **RANK + MEDALHA BETA + INGRESSO BETACUP**!")
 
         # atualiza contadores pela ultima vez
         await self._update_counters(giveaway_id)
