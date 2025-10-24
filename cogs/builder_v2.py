@@ -396,7 +396,7 @@ class BuilderV2Cog(commands.Cog):
 
                     session.add_component({
                         "type": 10,
-                        "content": f"{label}: {marker}"
+                        "content": f"{label} {marker}"
                     })
                     await msg.reply("tempo adicionado")
                     continue
