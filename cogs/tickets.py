@@ -122,7 +122,6 @@ async def restore_panel(bot: commands.Bot):
         clean_ids()
     except discord.Forbidden:
         print("[tickets] Could not restore ticket panel: missing permissions to access channel or message.")
-        clean_ids()
     except discord.HTTPException as e:
         print(f"[tickets] Could not restore ticket panel: HTTP error {e}")
     except Exception as e:
@@ -235,7 +234,7 @@ async def do_close(interaction: discord.Interaction, reason: str):
         return
 
     await interaction.response.defer()
-    
+        
     # avaliacao 1-5 botoes
 
     class RatingView(discord.ui.View):
@@ -386,7 +385,7 @@ class Tickets(commands.Cog):
     #comando de /ticket lock
     @group.command(name="lock", description="Comando de lock (apenas para staff).") 
     @app_commands.checks.has_permissions(manage_channels=True) 
-    async def tiket_lock(self, interaction: discord.Interaction):
+    async def lock(self, interaction: discord.Interaction):
         
         canal = interaction.channel
         everyone_role = interaction.guild.default_role
