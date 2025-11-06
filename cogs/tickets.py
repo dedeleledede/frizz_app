@@ -137,7 +137,7 @@ class TicketModal(discord.ui.Modal):
             }.get(category, "Abrir Ticket")
         super().__init__(title=title, timeout=None, custom_id=f"ticket_modal:{category}:{int(anonymous)}")
 
-        self.desc = discord.ui.TextInput(label="descricao", style=discord.TextStyle.paragraph, min_length=10, max_length=1500, required=True, placeholder="Breve descrição do problema.")
+        self.desc = discord.ui.TextInput(label="Descrição do Problema", style=discord.TextStyle.paragraph, min_length=10, max_length=1500, required=True, placeholder="Meu BETA não funciona!")
 
         self.add_item(self.desc)
 
@@ -180,20 +180,45 @@ class TicketModal(discord.ui.Modal):
         await interaction.followup.send(content=f"Ticket criado com sucesso: {channel.mention}", ephemeral=True)
         
 # painel de abertura de tickets
-class PanelView(discord.ui.View):
+class PanelView(discord.ui.LayoutView):
     def __init__(self):
         super().__init__(timeout=None)
 
-    @discord.ui.button(label="Suporte", style=discord.ButtonStyle.primary, custom_id="create_ticket_suporte", emoji="🎫")
-    async def create_ticket_suporte(self, interaction: discord.Interaction, button: discord.ui.Button):
+        # construcao de texto
+        header = discord.ui.TextDisplay("## Atendimento ao jogador")
+        desc = discord.ui.TextDisplay(
+            "Precisa de ajuda? Abra um ticket clicando nas categorias abaixo e "
+            "nossa equipe irá atendê-lo o mais rápido possível."
+        )
+
+        # divider
+        divider = discord.ui.Separator(
+            spacing=discord.SeparatorSpacing.large,
+            visible=True,
+        )
+
+        # construcao de botoes
+        b1 = discord.ui.Button(label="Suporte", style=discord.ButtonStyle.primary, custom_id="create_ticket_suporte", emoji="🎫")
+        b2 = discord.ui.Button(label="Denúncia", style=discord.ButtonStyle.danger, custom_id="create_ticket_denuncia", emoji="🚨")
+        b3 = discord.ui.Button(label="Loja", style=discord.ButtonStyle.success, custom_id="create_ticket_loja", emoji="🛒")
+        b1.callback = self.create_ticket_suporte
+        b2.callback = self.create_ticket_denuncia
+        b3.callback = self.create_ticket_loja
+
+        row = discord.ui.ActionRow(b1, b2, b3)
+        footer = discord.ui.TextDisplay("-# www.frizzmc.com")
+
+        container = discord.ui.Container(header, desc, divider, row, footer)
+        self.add_item(container)
+
+    # botoes
+    async def create_ticket_suporte(self, interaction: discord.Interaction):
         await interaction.response.send_modal(TicketModal("Suporte"))
-        
-    @discord.ui.button(label="Denúncia", style=discord.ButtonStyle.danger, custom_id="create_ticket_denuncia", emoji="🚨")
-    async def create_ticket_denuncia(self, interaction: discord.Interaction, button: discord.ui.Button):
+
+    async def create_ticket_denuncia(self, interaction: discord.Interaction):
         await interaction.response.send_modal(TicketModal("Denúncia"))
-        
-    @discord.ui.button(label="Loja", style=discord.ButtonStyle.success, custom_id="create_ticket_loja", emoji="🛒")
-    async def create_ticket_loja(self, interaction: discord.Interaction, button: discord.ui.Button):
+
+    async def create_ticket_loja(self, interaction: discord.Interaction):
         await interaction.response.send_modal(TicketModal("Loja"))
 
 # controles dentro do ticket para visualizacao e gerenciamento
@@ -319,11 +344,10 @@ async def do_close(interaction: discord.Interaction, reason: str):
     
         await channel.edit(overwrites=overwrites, reason="Ticket encerrado")
 
-        await channel.send("encerrado")
         # enviar log para canal de logs
         # delete provisorio
         wait_time = 5  # segundos
-        await channel.send(f"Este canal será excluído em {wait_time} segundos.")
+        await channel.send(f"Ticket encerrado. Este canal será excluído em {wait_time} segundos.")
 
         await asyncio.sleep(wait_time)
         await channel.delete(reason="Ticket encerrado")
@@ -362,7 +386,7 @@ class Tickets(commands.Cog):
     group = app_commands.Group(name="ticket", description="Utilidades e configuracoes de tickets.")
 
     #publicar painel
-    @group.command(name="panel", description="Publica o painel de abertura de tickets no canal atual.")
+    @group.command(name="panel", description="Publica o painel de abertura de tickets no canal configurado.")
     @app_commands.checks.has_permissions(administrator=True)
     async def panel(self, interaction: discord.Interaction):
         # checagem de configs
@@ -371,12 +395,15 @@ class Tickets(commands.Cog):
             await interaction.response.send_message(message, ephemeral=True)
             return False
 
-        await interaction.response.send_message("Painel publicado.", ephemeral=True)
+        channel_id = CONFIG.get("panel_channel_id")
+        channel = interaction.client.get_channel(channel_id)
+        await interaction.response.defer(ephemeral=True, thinking=True)
 
-        embed = discord.Embed(title="Abertura de Tickets", description="Escolha uma das categorias abaixo para abrir seu ticket.", colour=discord.Colour.green())
+        # construcao de mensagem
         view = PanelView()
+        msg = await channel.send(view=view)
+        await interaction.followup.send("Painel publicado.", ephemeral=True)
 
-        msg = await interaction.channel.send(embed=embed, view=view)
         # salvar id da mensagem e canal
         CONFIG["last_ticket_message_id"] = msg.id
         CONFIG["last_ticket_channel_id"] = msg.channel.id
@@ -446,7 +473,7 @@ class Tickets(commands.Cog):
     # configurar tickets
     @group.command(name="config", description="Configura IDs de canais e cargos")
     @app_commands.describe(panel_channel_id="Canal onde o painel de tickets sera postado", logs_channel_id="Canal onde os logs de tickets serao enviados", ticket_category_id="Categoria onde os tickets serao criados", staff_role_id="Cargo que tera acesso aos tickets", admin_role_id="Cargo com permissoes administrativas no bot", one_ticket_per_user="Permitir apenas um ticket por usuario", enable_anonymous_reports="Permitir tickets anonimos", rating_timeout_sec="Tempo (em segundos) para aguardar avaliacao apos fechamento do ticket (default 20s)", sla_warn_hours="Horas para avisar sobre SLA (0 para desativar, default 24h)", sla_autoclose_hours="Horas para fechar automaticamente o ticket (0 para desativar, default 48h)")
-    @app_commands.checks.has_role(CONFIG.get("admin_role_id"))
+    @app_commands.checks.has_permissions(administrator=True)
     async def config_cmd(self, interaction: discord.Interaction,
         panel_channel_id: Optional[discord.TextChannel] = None,
         logs_channel_id: Optional[discord.TextChannel] = None,
