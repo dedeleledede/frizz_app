@@ -15,7 +15,7 @@ import config
 # Atualizar o bot dando pull
 self_update()
 
-token = config.DEBUG_TOKEN
+token = config.TOKEN
 if not token:
     raise RuntimeError("Token ausente. Verifique o .env e o carregamento com load_dotenv().")
 
