@@ -220,10 +220,13 @@ class PanelView(discord.ui.LayoutView):
         super().__init__(timeout=None)
 
         # construcao de texto
+        thumbnail = discord.ui.Thumbnail(media='https://cdn.discordapp.com/attachments/781008768925433876/1410721715264426148/frizz-logo-test.png')
         header = discord.ui.TextDisplay("## 🎟️ ・ Suporte ao jogador")
         desc = discord.ui.TextDisplay(
-            "Está com um problema e não consegue resolver? Abra um chamado e receba suporte da equipe."
+            "Está com um problema e não consegue resolver?\nAbra um chamado e receba suporte da equipe."
         )
+
+        top = discord.ui.Section(header, desc, accessory=thumbnail)
 
         # divider
         divider = discord.ui.Separator(
@@ -242,18 +245,19 @@ class PanelView(discord.ui.LayoutView):
         row = discord.ui.ActionRow(b1, b2, b3)
         footer = discord.ui.TextDisplay("-# www.frizzmc.com")
 
-        container = discord.ui.Container(header, desc, divider, row, footer)
+        container = discord.ui.Container(top, divider, footer, accent_color=discord.Colour.from_str("#01a5f7"))
         self.add_item(container)
+        self.add_item(row)
 
     # botoes
     async def create_ticket_suporte(self, interaction: discord.Interaction):
-        await interaction.response.send_modal(TicketModal("Suporte"))
+        await interaction.response.send_modal(TicketModal(" Suporte "))
 
     async def create_ticket_denuncia(self, interaction: discord.Interaction):
         await interaction.response.send_modal(TicketModal("Denúncia"))
 
     async def create_ticket_loja(self, interaction: discord.Interaction):
-        await interaction.response.send_modal(TicketModal("Loja"))
+        await interaction.response.send_modal(TicketModal("  Loja  "))
 
 # controles dentro do ticket para visualizacao e gerenciamento
 class TicketControlsView(discord.ui.View):
