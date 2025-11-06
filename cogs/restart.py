@@ -13,6 +13,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 import config
+from updater import self_update
 
 class Restart(commands.Cog):
     def __init__(self, bot: commands.Bot):
