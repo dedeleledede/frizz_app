@@ -543,7 +543,7 @@ class Tickets(commands.Cog):
             await interaction.response.send_message(f"Erro ao salvar configurações: {e}", ephemeral=True)
             return
 
-        embed = discord.Embed(title="Configurações de Tickets Atualizadas", description="\n".join(changes), colour=discord.Colour.blue(), timestamp=discord.utils.utcnow())
+        embed = discord.Embed(title="Configurações de Tickets Atualizadas; Digite **/restart** para aplicar!", description="\n".join(changes), colour=discord.Colour.blue(), timestamp=discord.utils.utcnow())
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
 async def setup(bot: commands.Bot):
