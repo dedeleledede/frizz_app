@@ -220,10 +220,9 @@ class PanelView(discord.ui.LayoutView):
         super().__init__(timeout=None)
 
         # construcao de texto
-        header = discord.ui.TextDisplay("## Atendimento ao jogador")
+        header = discord.ui.TextDisplay("## * 🎟️ Suporte ao jogador")
         desc = discord.ui.TextDisplay(
-            "Precisa de ajuda? Abra um ticket clicando nas categorias abaixo e "
-            "nossa equipe irá atendê-lo o mais rápido possível."
+            "Está com um problema e não consegue resolver? Abra um chamado e receba suporte da equipe."
         )
 
         # divider
