@@ -141,14 +141,14 @@ class TicketModal(discord.ui.Modal):
 
         self.add_item(self.desc)
 
-    # quando o modal for enviado
+    
     async def on_submit(self, interaction: discord.Interaction):
         await interaction.response.defer(ephemeral=True, thinking=True)
 
         guild = interaction.guild
         assert guild is not None
 
-        # checar se user ja tem ticket aberto
+        
         if CONFIG.get("one_ticket_per_user", True):
             for ch in guild.text_channels:
                 if ch.topic and f"ticket_author_id={interaction.user.id}" in ch.topic and ch.permissions_for(interaction.user).view_channel:
@@ -157,13 +157,47 @@ class TicketModal(discord.ui.Modal):
         ticket_category_id = CONFIG.get("ticket_category_id")
         parent = guild.get_channel(ticket_category_id) if ticket_category_id and ticket_category_id != 0 else None
 
+        staff_role_id = CONFIG.get("staff_role_id")
+        admin_role_id = CONFIG.get("admin_role_id")
+        
+        staff_role = guild.get_role(staff_role_id)
+        admin_role = guild.get_role(admin_role_id)
+        everyone_role = guild.default_role 
+
+        
+        if not staff_role or not admin_role:
+            await interaction.followup.send("Erro crítico: O cargo de Staff ou Admin (`staff_role_id`, `admin_role_id`) configurado não foi encontrado. O ticket não pode ser criado.", ephemeral=True)
+            return
+
+        
+        allow_perms = discord.PermissionOverwrite(
+            view_channel=True,
+            send_messages=True,
+            read_message_history=True,
+            attach_files=True,
+            embed_links=True
+        )
+        
+        deny_perms = discord.PermissionOverwrite(view_channel=False)
+
+        
+        overwrites = {
+            everyone_role: deny_perms,
+            interaction.user: allow_perms,
+            staff_role: allow_perms,
+            admin_role: allow_perms,
+            guild.me: allow_perms  
+        }
+
+        
         channel = await guild.create_text_channel(
             name=build_channel_name(self.category, interaction.user),
             category=parent,
             topic=f"ticket_category={self.category}; ticket_author_id={interaction.user.id}",
-            reason="Novo ticket criado via modal."
+            reason="Novo ticket criado via modal.",
+            overwrites=overwrites
         )
-
+        
         author_label = interaction.user.mention if not self.anonymous else "Anônimo"
 
         embed = discord.Embed(title=f"Ticket de {self.category.title()}",
@@ -171,14 +205,15 @@ class TicketModal(discord.ui.Modal):
         embed.add_field(name=interaction.user.display_name, value=author_label, inline=True)
         embed.add_field(name="descricao", value=self.desc.value, inline=False)
 
-        # pingar cargo de staff 
         view = TicketControlsView(opener_id=interaction.user.id)
-        await channel.send(content=f"<@&.{CONFIG.get('staff_role_id')}>", embed=embed, view=view)
+        staff_ping = f"<@&{CONFIG.get('staff_role_id')}>"
+        
+        await channel.send(content=staff_ping, embed=embed, view=view)
 
         await channel.send(f"{interaction.user.mention} criou um ticket na categoria **{self.category}**.")
 
         await interaction.followup.send(content=f"Ticket criado com sucesso: {channel.mention}", ephemeral=True)
-        
+                
 # painel de abertura de tickets
 class PanelView(discord.ui.LayoutView):
     def __init__(self):
